@@ -1,0 +1,18 @@
+displayName: ForgeMesh Pay-per-Crawl
+type: middleware
+iconPath: .assets/icon.png
+import: github.com/forgemeshlabs/pay-per-crawl-go/traefik
+
+summary: >
+  Charge AI crawlers and bots per page with x402 (v1 + v2) and MPP over HTTP 402, paid in
+  USDC on Base straight to your wallet. Humans and rDNS-verified search engines stay free.
+  You keep 100%: no account, no custody, no key.
+
+testData:
+  payTo: "0x13C3C28c64cc9d60eEb8a675F3fe27eBC6a4Cd09"
+  priceUSD: 0.01
+  mode: gate
+  allowPaths:
+    - /public/
+  botOverrides:
+    Bytespider: block

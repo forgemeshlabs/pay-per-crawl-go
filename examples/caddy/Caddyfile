@@ -1,0 +1,38 @@
+# Pay-per-Crawl in front of any Caddy site.
+#
+#   PAY_TO=0xYourWallet caddy run --config Caddyfile --adapter caddyfile
+#
+# Humans and rDNS-verified search engines read free. AI crawlers, SEO crawlers and
+# generic bots get an HTTP 402 (x402 v1 + v2 and MPP) and pay in USDC on Base,
+# straight to PAY_TO. You keep 100%: no account, no custody, no ForgeMesh key.
+example.com {
+	pay_per_crawl {
+		pay_to {env.PAY_TO}
+		price 0.01
+
+		# gate = answer 402 to paid classes; monitor = classify and log only
+		mode gate
+
+		# Defaults shown. Classes: human search social monitor seo ai automation bot
+		policy ai paid
+		policy seo paid
+		policy search free
+
+		# Per-bot override beats the class policy. Values: free | paid | block
+		bot Bytespider block
+		bot PerplexityBot free
+
+		allow_path /public/
+
+		# Behind Cloudflare, read the real client IP for search-engine verification.
+		# Only set this when the header is written by your own edge.
+		# trusted_ip_header CF-Connecting-IP
+
+		site_name "Example"
+		site_description "Example site"
+		# mpp_secret {env.PPC_MPP_SECRET}   # stable across restarts and instances
+		# pro_key fmppc_...                 # optional hosted dashboard
+	}
+
+	reverse_proxy localhost:8080
+}

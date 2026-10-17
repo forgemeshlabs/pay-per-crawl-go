@@ -1,0 +1,33 @@
+# Dynamic configuration: put the middleware in front of a router.
+# Static config must load the plugin first (see README: experimental.plugins).
+http:
+  routers:
+    site:
+      rule: Host(`example.com`)
+      entryPoints: [websecure]
+      middlewares: [pay-per-crawl]
+      service: site
+      tls: {}
+  middlewares:
+    pay-per-crawl:
+      plugin:
+        pay-per-crawl:
+          payTo: "0xYourWalletAddress"
+          priceUSD: 0.01
+          mode: gate            # gate | monitor
+          # classPolicy:        # human search social monitor seo ai automation bot -> free|paid|block
+          #   ai: paid
+          #   seo: paid
+          # botOverrides:       # catalog name -> free|paid|block
+          #   Bytespider: block
+          #   PerplexityBot: free
+          allowPaths:
+            - /public/
+          # trustedIPHeader: CF-Connecting-IP
+          # mppSecret: "a-long-random-string"   # stable across restarts
+          # proKey: "fmppc_..."                 # optional hosted dashboard
+  services:
+    site:
+      loadBalancer:
+        servers:
+          - url: http://127.0.0.1:8080
