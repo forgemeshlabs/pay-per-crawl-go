@@ -430,3 +430,26 @@ func TestTrustedIPHeaderRightMostWins(t *testing.T) {
 		t.Fatalf("single-value header: %d", resp.StatusCode)
 	}
 }
+
+func TestExemptAnchored(t *testing.T) {
+	g := &Gate{cfg: Config{AllowPaths: []string{"/pricing"}}}
+	cases := map[string]bool{
+		"/robots.txt": true, "/robots.txt.html": false, "/robots.txt.anything": false,
+		"/llms.txt": true, "/llms.txtx": false, "/agents.txt": true, "/favicon.ico": true,
+		"/sitemap.xml": true, "/wp-sitemap-posts-post-1.xml": true, "/sitemap_index.xml": true,
+		"/sitemapfoo": false, "/sitemap.xml/x": false, "/a/sitemap.xml": false,
+		"/.well-known/x402.json": true, "/.well-known/../post": false, "/.well-known/%2e%2e/post": false,
+		"/.well-known/%2E%2E/post": false, "/foo%2fbar": false,
+		"/pricing": true, "/pricing/": true, "/pricing/plans": true, "/pricing-secret": false,
+		"//robots.txt": false, "/post": false, "/": false,
+	}
+	for p, want := range cases {
+		if got := g.exempt(p); got != want {
+			t.Errorf("exempt(%q) = %v, want %v", p, got, want)
+		}
+	}
+	g2 := &Gate{cfg: Config{AllowPaths: []string{"/docs/"}}}
+	if !g2.exempt("/docs/a") || g2.exempt("/docs") || g2.exempt("/docsx") {
+		t.Error("trailing-slash AllowPath semantics wrong")
+	}
+}

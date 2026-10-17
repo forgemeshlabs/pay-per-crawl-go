@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -18,8 +19,9 @@ import (
 
 var payToRe = regexp.MustCompile(`^0x[0-9a-fA-F]{40}$`)
 
-// Paths that are never gated.
-var exemptPrefixes = []string{"/robots.txt", "/llms.txt", "/agents.txt", "/.well-known/", "/favicon.ico", "/sitemap"}
+// Paths that are never gated: exact files, root-level sitemap .xml files, and the /.well-known/ directory.
+var exemptFiles = map[string]bool{"/robots.txt": true, "/llms.txt": true, "/agents.txt": true, "/favicon.ico": true}
+var sitemapRe = regexp.MustCompile(`^/[a-z0-9_-]*sitemap[a-z0-9_-]*\.xml$`)
 
 // Gate applies the pay-per-crawl policy to HTTP requests. It is the single implementation the
 // net/http, Caddy and Traefik adapters all call.
@@ -88,7 +90,7 @@ func (g *Gate) Handle(w http.ResponseWriter, r *http.Request) bool {
 			return false
 		}
 	}
-	if g.exempt(path) {
+	if g.exempt(path) && !hasEncodedSlashOrDot(r.URL.EscapedPath()) {
 		return true
 	}
 
@@ -214,15 +216,35 @@ func (g *Gate) x402(base, host string) *X402 {
 	})
 }
 
-func (g *Gate) exempt(path string) bool {
-	for _, p := range exemptPrefixes {
-		if strings.HasPrefix(path, p) {
-			return true
-		}
+// hasEncodedSlashOrDot reports whether a raw path contains %2f or %2e (any case).
+func hasEncodedSlashOrDot(raw string) bool {
+	l := strings.ToLower(raw)
+	return strings.Contains(l, "%2f") || strings.Contains(l, "%2e")
+}
+
+// underAllowed reports whether the normalised path equals allow or sits beneath it
+// ("/pricing" matches "/pricing" and "/pricing/x" but never "/pricing-secret").
+func underAllowed(norm, allow string) bool {
+	if strings.HasSuffix(allow, "/") {
+		return strings.HasPrefix(norm, allow)
+	}
+	return norm == allow || strings.HasPrefix(norm, allow+"/")
+}
+
+func (g *Gate) exempt(raw string) bool {
+	if hasEncodedSlashOrDot(raw) {
+		return false
+	}
+	norm := path.Clean("/" + raw)
+	if strings.TrimRight(norm, "/") != strings.TrimRight(raw, "/") {
+		return false // dot segments, double slashes: not what the client asked for, so gate it
+	}
+	if exemptFiles[norm] || sitemapRe.MatchString(norm) || underAllowed(norm, "/.well-known/") || norm == "/.well-known" {
+		return true
 	}
 	for _, p := range g.cfg.AllowPaths {
 		p = strings.TrimSpace(p)
-		if p != "" && strings.HasPrefix(path, p) {
+		if p != "" && underAllowed(norm, p) {
 			return true
 		}
 	}
